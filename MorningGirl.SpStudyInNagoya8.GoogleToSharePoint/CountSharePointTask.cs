@@ -5,30 +5,48 @@ using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
+using System.Configuration;
+
+using Newtonsoft.Json;
 
 namespace MorningGirl.SpStudyInNagoya8.GoogleToSharePoint
 {
     public static class CountSharePointTask
     {
         [FunctionName("CountSharePointTask")]
-        public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)]HttpRequestMessage req, TraceWriter log)
+        public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = null)]HttpRequestMessage req, TraceWriter log)
         {
             log.Info("C# HTTP trigger function processed a request.");
+            
+            // Bodyの情報を取得
+            var jsondata = JsonConvert.DeserializeObject<GoogleDialogRequestBody>(await req.Content.ReadAsStringAsync());
 
-            // parse query parameter
-            string name = req.GetQueryNameValuePairs()
-                .FirstOrDefault(q => string.Compare(q.Key, "name", true) == 0)
-                .Value;
+            log.Info(req.Content.ReadAsStringAsync().ToString());
 
-            // Get request body
-            dynamic data = await req.Content.ReadAsAsync<object>();
+            log.Info($"Target Datetime {jsondata.result.parameters.datetime.ToString()}");
 
-            // Set name to query string or body data
-            name = name ?? data?.name;
 
-            return name == null
-                ? req.CreateResponse(HttpStatusCode.BadRequest, "Please pass a name on the query string or in the request body")
-                : req.CreateResponse(HttpStatusCode.OK, "Hello " + name);
+
+            var spManager = new SharePointManager(
+                 ConfigurationManager.ConnectionStrings["SharePointConnection"].ConnectionString);
+            
+            // SharePointのタスクの件数を確認
+            var count = spManager.CountSharePointData(jsondata.result.parameters.datetime);
+            
+            log.Info(count.ToString());
+
+            // レスポンス用BodyのJsonクラスの作成
+            var response = new GoogleDialogResponseBody()
+            {
+                speech = $"{jsondata.result.parameters.datetime.ToShortDateString()}のSharePointのタスクは{count.ToString()}件です",
+                displayText = $"{jsondata.result.parameters.datetime.ToShortDateString()}のSharePointのタスクは{count.ToString()}件です"
+            };
+            
+            // Responseの作成
+            var respo = req.CreateResponse(HttpStatusCode.OK, response);            
+            respo.Headers.Add("ContentType", "application/json");
+
+            return respo;
         }
     }
 }

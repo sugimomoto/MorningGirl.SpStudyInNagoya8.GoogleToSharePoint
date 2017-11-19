@@ -83,5 +83,29 @@ namespace MorningGirl.SpStudyInNagoya8.GoogleToSharePoint
 
             return rtn;
         }
+
+
+        /// <summary>
+        /// SharePointのタスクをカウント
+        /// </summary>
+        /// <returns></returns>
+        public int CountSharePointData(DateTime datetime)
+        {
+            var rtn = 0;
+
+            using (var connection = new SharePointConnection(this.SharePointConnectionString))
+            {
+                var cmd = new SharePointCommand($"SELECT COUNT(*) as COUNT FROM [CData].[SharePoint].[NagoyaTask] where [登録日時] < '{datetime.AddDays(1)}' and [登録日時] > '{datetime}'", connection);
+
+                var rowsAffected = cmd.ExecuteReader();
+
+                while (rowsAffected.Read())
+                {
+                    rtn = (int)rowsAffected["COUNT"];
+                }
+            }
+
+            return rtn;
+        }
     }
 }
